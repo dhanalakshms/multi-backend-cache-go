@@ -1,19 +1,26 @@
 package inmemory
 
-// Node represents a doubly linked list node
+import (
+	"sync"
+	"time"
+)
+
+// LL node creation
 type Node struct {
 	key   string
 	value interface{}
 	prev  *Node
 	next  *Node
+	expiry time.Time
 }
 
-// LRUCache represents the LRU cache
+// LRU cache
 type LRUCache struct {
 	capacity int
 	cache    map[string]*Node
 	head     *Node
 	tail     *Node
+	mu sync.RWMutex  //Mutex
 }
 
 // NewLRUCache initializes the LRU cache
@@ -47,33 +54,73 @@ func (c *LRUCache) remove(node *Node) {
 	node.next.prev = node.prev
 }
 
+
 // Get retrieves a value and marks it as recently used
 func (c *LRUCache) Get(key string) (interface{}, bool) {
-	if node, ok := c.cache[key]; ok {
-		c.remove(node)
-		c.add(node)
-		return node.value, true
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	node, ok := c.cache[key]
+	if !ok {
+		return nil, false
 	}
-	return nil, false
+
+	// TTL check
+	if !node.expiry.IsZero() && time.Now().After(node.expiry) {
+		c.remove(node)
+		delete(c.cache, key)
+		return nil, false
+	}
+
+	c.remove(node)
+	c.add(node)
+	return node.value, true
 }
 
+
 // Set inserts or updates a key-value pair
-func (c *LRUCache) Set(key string, value interface{}) {
-	// If key exists, remove old node
+// Set inserts or updates a key-value pair with optional TTL
+func (c *LRUCache) Set(key string, value interface{}, ttl time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// If exists, remove old
 	if node, ok := c.cache[key]; ok {
 		c.remove(node)
 		delete(c.cache, key)
 	}
 
-	// If capacity exceeded, remove least recently used
+	// Evict if full
 	if len(c.cache) >= c.capacity {
 		lru := c.tail.prev
 		c.remove(lru)
 		delete(c.cache, lru.key)
 	}
 
-	// Add new node
-	node := &Node{key: key, value: value}
+	exp := time.Time{}
+	if ttl > 0 {
+		exp = time.Now().Add(ttl)
+	}
+
+	node := &Node{
+		key:    key,
+		value:  value,
+		expiry: exp,
+	}
+
 	c.add(node)
 	c.cache[key] = node
 }
+
+
+// Delete removes a key manually
+func (c *LRUCache) Delete(key string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if node, ok := c.cache[key]; ok {
+		c.remove(node)
+		delete(c.cache, key)
+	}
+}
+
