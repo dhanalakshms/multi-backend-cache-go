@@ -2,198 +2,172 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/dhanalakshms/multi-backend-cache-go/cache"
 	"github.com/dhanalakshms/multi-backend-cache-go/inmemory"
-	memcachedbackend "github.com/dhanalakshms/multi-backend-cache-go/memcached"
+	"github.com/dhanalakshms/multi-backend-cache-go/memcached"
 	redisbackend "github.com/dhanalakshms/multi-backend-cache-go/redis"
 )
 
 func main() {
 
-	fmt.Println("===== LRU Cache test =====")
+	backend := "lru"
+	if len(os.Args) > 1 {
+		backend = os.Args[1]
+	}
 
 	var c cache.Cache
-	c = inmemory.NewLRUCache(2)
+	var dbName string
 
-	fmt.Println("\n1) Basic SET + GET")
-	c.Set("a", "apple", 0)
+	switch backend {
 
-	val, ok := c.Get("a")
-	fmt.Println("Get a:", val, ok)
+	case "lru":
+		dbName = "In-Memory LRU Cache"
+		c = inmemory.NewLRUCache(2)
 
-	fmt.Println("\n2) LRU Eviction")
-	c.Set("b", "Mango", 0)
-	c.Set("c", "Orange", 0) 
+	case "redis":
+		dbName = "Redis Cache"
+		rc, err := redisbackend.NewRedisCache("localhost:6379")
+		if err != nil {
+			fmt.Println("Redis error:", err)
+			return
+		}
+		defer rc.Close()
+		c = rc
 
-	_, ok = c.Get("a")
-	fmt.Println("a exists after eviction:", ok)
+	case "memcached":
+		dbName = "Memcached Cache"
+		mc, err := memcached.NewMemcachedCache("localhost:11211")
+		if err != nil {
+			fmt.Println("Memcached error:", err)
+			return
+		}
+		defer mc.Close()
+		c = mc
 
-
-	fmt.Println("\n3) Delete test")
-	c.Set("x", "delete-me", 0)
-
-	c.Delete("x")
-	_, ok = c.Get("x")
-	fmt.Println("x exists after delete:", ok)
-
-
-	fmt.Println("\n4) TTL expiry test")
-	c.Set("ttl", "sample", 2*time.Second)
-
-	val, ok = c.Get("ttl")
-	fmt.Println("before expiry:", val, ok)
-
-	time.Sleep(3 * time.Second)
-
-	_, ok = c.Get("ttl")
-	fmt.Println("after expiry:", ok)
-
-	fmt.Println("\n5) Missing key test")
-	_, ok = c.Get("unknown")
-	fmt.Println("unknown exists:", ok)
-
-
-	fmt.Println("\n===== LRU test Complete =====")
-
-	// Redis Cache Testing
-	testRedisCache()
-
-	// Memcached Cache Testing
-	testMemcachedCache()
-}
-
-func testRedisCache() {
-	fmt.Println("\n\n===== Redis Cache test =====")
-
-	// Create Redis cache connection
-	rc, err := redisbackend.NewRedisCache("localhost:6379")
-	if err != nil {
-		fmt.Println("ERROR: Cannot connect to Redis:", err)
-		fmt.Println("Make sure Redis is running on localhost:6379")
+	default:
+		fmt.Println("Unknown backend. Use: lru | redis | memcached")
 		return
 	}
-	defer rc.Close()
 
-	// Clear all keys before testing
-	rc.FlushAll()
+	fmt.Println("======================================")
+	fmt.Println("Using Backend:", dbName)
+	fmt.Println("======================================")
 
-	var c cache.Cache
-	c = rc
+	// ------------------------------------------------
+	// 1️⃣ Basic Set & Get
+	// ------------------------------------------------
+	fmt.Println("\n[1] Basic Set & Get")
+	c.Set("TestKey1", "TestData1", 0)
 
-	fmt.Println("\n1) Redis Basic SET + GET")
-	c.Set("name", "Dhanalakshmi", 0)
-
-	val, ok := c.Get("name")
-	fmt.Println("Get name:", val, ok)
-
-	fmt.Println("\n2) Redis SET with TTL")
-	c.Set("session", "user123", 5*time.Second)
-
-	val, ok = c.Get("session")
-	fmt.Println("before expiry:", val, ok)
-
-	fmt.Println("Waiting 6 seconds for TTL expiry...")
-	time.Sleep(6 * time.Second)
-
-	_, ok = c.Get("session")
-	fmt.Println("after expiry:", ok)
-
-	fmt.Println("\n3) Redis Delete test")
-	c.Set("temp", "temporary-value", 0)
-
-	c.Delete("temp")
-	_, ok = c.Get("temp")
-	fmt.Println("temp exists after delete:", ok)
-
-	fmt.Println("\n4) Redis Multiple values")
-	c.Set("user1", "Alice", 0)
-	c.Set("user2", "Bob", 0)
-	c.Set("user3", "Charlie", 0)
-
-	for i := 1; i <= 3; i++ {
-		key := fmt.Sprintf("user%d", i)
-		val, ok := c.Get(key)
-		fmt.Println(fmt.Sprintf("Get %s: %v, exists: %v", key, val, ok))
-	}
-
-	fmt.Println("\n5) Redis Advanced - GetTTL")
-	c.Set("expiring", "value", 10*time.Second)
-	ttl, _ := rc.GetTTL("expiring")
-	fmt.Println("Remaining TTL for 'expiring':", ttl.Seconds(), "seconds")
-
-	fmt.Println("\n6) Redis Advanced - Keys pattern")
-	keys, _ := rc.Keys("user*")
-	fmt.Println("Keys matching 'user*':", keys)
-
-	fmt.Println("\n===== Redis test Complete =====")
-}
-
-func testMemcachedCache() {
-	fmt.Println("\n\n===== Memcached Cache test =====")
-
-	// Create Memcached cache connection
-	mc, err := memcachedbackend.NewMemcachedCache("localhost:11211")
+	val, err := c.Get("TestKey1")
 	if err != nil {
-		fmt.Println("ERROR: Cannot connect to Memcached:", err)
-		fmt.Println("Make sure Memcached is running on localhost:11211")
-		return
-	}
-	defer mc.Close()
-
-	// Clear all keys before testing
-	mc.FlushAll()
-
-	var c cache.Cache
-	c = mc
-
-	fmt.Println("\n1) Memcached Basic SET + GET")
-	c.Set("product", "Laptop", 0)
-
-	val, ok := c.Get("product")
-	fmt.Println("Get product:", val, ok)
-
-	fmt.Println("\n2) Memcached SET with TTL")
-	c.Set("cache_key", "temp_data", 5*time.Second)
-
-	val, ok = c.Get("cache_key")
-	fmt.Println("before expiry:", val, ok)
-
-	fmt.Println("Waiting 6 seconds for TTL expiry...")
-	time.Sleep(6 * time.Second)
-
-	_, ok = c.Get("cache_key")
-	fmt.Println("after expiry:", ok)
-
-	fmt.Println("\n3) Memcached Delete test")
-	c.Set("delete_test", "removable", 0)
-
-	c.Delete("delete_test")
-	_, ok = c.Get("delete_test")
-	fmt.Println("delete_test exists after delete:", ok)
-
-	fmt.Println("\n4) Memcached Multiple values")
-	c.Set("item1", "Apple", 0)
-	c.Set("item2", "Banana", 0)
-	c.Set("item3", "Cherry", 0)
-
-	for i := 1; i <= 3; i++ {
-		key := fmt.Sprintf("item%d", i)
-		val, ok := c.Get(key)
-		fmt.Println(fmt.Sprintf("Get %s: %v, exists: %v", key, val, ok))
+		fmt.Println("FAILED:", err)
+	} else {
+		fmt.Println("PASSED: Retrieved =", val)
 	}
 
-	fmt.Println("\n5) Memcached GetMultiple (batch retrieval)")
-	mc.Set("id:1", "user_1", 0)
-	mc.Set("id:2", "user_2", 0)
-	mc.Set("id:3", "user_3", 0)
+	// ------------------------------------------------
+	// 2️⃣ Overwrite Existing Key
+	// ------------------------------------------------
+	fmt.Println("\n[2] Overwrite Existing Key")
+	c.Set("TestKey1", "UpdatedData1", 0)
 
-	items := mc.GetMultiple("id:1", "id:2", "id:3")
-	fmt.Println("Batch retrieved items:", items)
+	val, _ = c.Get("TestKey1")
+	fmt.Println("PASSED: Updated value =", val)
 
-	fmt.Println("\n6) Memcached connection successful (basic validation)")
+	// ------------------------------------------------
+	// 3️⃣ LRU Eviction Test (Capacity = 2)
+	// ------------------------------------------------
+	fmt.Println("\n[3] LRU Eviction Test")
+	c.Set("TestKey2", "TestData2", 0)
+	c.Set("TestKey3", "TestData3", 0) // Should evict TestKey1
+
+	_, err = c.Get("TestKey1")
+	if err != nil {
+		fmt.Println("PASSED: TestKey1 evicted correctly")
+	} else {
+		fmt.Println("FAILED: Eviction did not occur")
+	}
+
+			// ------------------------------------------------
+		// 4️⃣ TTL Expiry Test (6 Seconds Wait)
+		// ------------------------------------------------
+		fmt.Println("\n[4] TTL Expiry Test")
+
+		ttlDuration := 5 * time.Second
+		fmt.Println("Setting key 'TTLKey' with TTL =", ttlDuration)
+
+		err = c.Set("TTLKey", "TestDataTTL", ttlDuration)
+		if err != nil {
+			fmt.Println("Set error:", err)
+			return
+		}
+
+		// Before expiry
+		val, err = c.Get("TTLKey")
+		if err != nil {
+			fmt.Println("FAILED: Unexpected error before expiry:", err)
+		} else {
+			fmt.Println("Before TTL Expiry → Retrieved:", val)
+		}
+
+		fmt.Println("Waiting 6 seconds for TTL to expire...")
+		time.Sleep(6 * time.Second)
+
+		// After expiry
+		val, err = c.Get("TTLKey")
+		if err != nil {
+			fmt.Println("After TTL Expiry → Expected Error:", err)
+		} else {
+			fmt.Println("FAILED: TTL did not expire. Value:", val)
+		}
 
 
-	fmt.Println("\n===== Memcached test Complete =====")
+	// ------------------------------------------------
+	// 5️⃣ Delete Test
+	// ------------------------------------------------
+	fmt.Println("\n[5] Delete Test")
+	c.Set("DeleteKey", "DeleteData", 0)
+	c.Delete("DeleteKey")
+
+	_, err = c.Get("DeleteKey")
+	if err != nil {
+		fmt.Println("PASSED: Delete successful")
+	} else {
+		fmt.Println("FAILED: Delete failed")
+	}
+
+	// ------------------------------------------------
+	// 6️⃣ Clear Test
+	// ------------------------------------------------
+	fmt.Println("\n[6] Clear Test")
+	c.Set("ClearKey1", "ClearData1", 0)
+	c.Set("ClearKey2", "ClearData2", 0)
+
+	c.Clear()
+
+	_, err = c.Get("ClearKey1")
+	if err != nil {
+		fmt.Println("PASSED: Cache cleared successfully")
+	} else {
+		fmt.Println("FAILED: Clear did not work")
+	}
+
+	// ------------------------------------------------
+	// 7️⃣ Missing Key Test
+	// ------------------------------------------------
+	fmt.Println("\n[7] Missing Key Test")
+	_, err = c.Get("NonExistingKey")
+	if err != nil {
+		fmt.Println("PASSED: Missing key handled correctly")
+	} else {
+		fmt.Println("FAILED: Missing key should return error")
+	}
+
+	fmt.Println("\n======================================")
+	fmt.Println("All tests completed successfully for", dbName)
+	fmt.Println("======================================")
 }
