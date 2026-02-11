@@ -15,25 +15,37 @@ type Node struct {
 }
 
 type LRUCache struct {
-	capacity int
-	cache    map[string]*Node
-	head     *Node
-	tail     *Node
-	mu       sync.Mutex
+	capacity        int
+	cache           map[string]*Node
+	head            *Node
+	tail            *Node
+	mu              sync.Mutex
+	cleanupInterval time.Duration
+	stopCleanup     chan struct{}
 }
 
-func NewLRUCache(capacity int) *LRUCache {
+// NewLRUCache creates LRU cache with optional background cleanup.
+// If cleanupInterval > 0, expired entries are removed periodically.
+func NewLRUCache(capacity int, cleanupInterval ...time.Duration) *LRUCache {
 	head := &Node{}
 	tail := &Node{}
 	head.next = tail
 	tail.prev = head
 
-	return &LRUCache{
+	c := &LRUCache{
 		capacity: capacity,
 		cache:    make(map[string]*Node),
 		head:     head,
 		tail:     tail,
 	}
+
+	if len(cleanupInterval) > 0 && cleanupInterval[0] > 0 {
+		c.cleanupInterval = cleanupInterval[0]
+		c.stopCleanup = make(chan struct{})
+		go c.startCleanup()
+	}
+
+	return c
 }
 
 func (c *LRUCache) add(node *Node) {
@@ -115,7 +127,6 @@ func (c *LRUCache) Delete(key string) error {
 
 	c.remove(node)
 	delete(c.cache, key)
-
 	return nil
 }
 
@@ -126,6 +137,46 @@ func (c *LRUCache) Clear() error {
 	c.cache = make(map[string]*Node)
 	c.head.next = c.tail
 	c.tail.prev = c.head
-
 	return nil
 }
+
+// ------------------------------
+// Background Cleanup
+// ------------------------------
+
+func (c *LRUCache) startCleanup() {
+	ticker := time.NewTicker(c.cleanupInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			c.removeExpired()
+		case <-c.stopCleanup:
+			return
+		}
+	}
+}
+
+func (c *LRUCache) removeExpired() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	now := time.Now()
+	for key, node := range c.cache {
+		if !node.expiry.IsZero() && now.After(node.expiry) {
+			c.remove(node)
+			delete(c.cache, key)
+		}
+	}
+}
+
+// StopCleanup safely stops background cleanup.
+func (c *LRUCache) StopCleanup() {
+	if c.stopCleanup != nil {
+		close(c.stopCleanup)
+	}
+}
+
+
+
