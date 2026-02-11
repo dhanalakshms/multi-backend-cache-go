@@ -6,6 +6,7 @@ import (
 
 	"github.com/dhanalakshms/multi-backend-cache-go/cache"
 	"github.com/dhanalakshms/multi-backend-cache-go/inmemory"
+	memcachedbackend "github.com/dhanalakshms/multi-backend-cache-go/memcached"
 	redisbackend "github.com/dhanalakshms/multi-backend-cache-go/redis"
 )
 
@@ -58,6 +59,9 @@ func main() {
 
 	// Redis Cache Testing
 	testRedisCache()
+
+	// Memcached Cache Testing
+	testMemcachedCache()
 }
 
 func testRedisCache() {
@@ -124,4 +128,72 @@ func testRedisCache() {
 	fmt.Println("Keys matching 'user*':", keys)
 
 	fmt.Println("\n===== Redis test Complete =====")
+}
+
+func testMemcachedCache() {
+	fmt.Println("\n\n===== Memcached Cache test =====")
+
+	// Create Memcached cache connection
+	mc, err := memcachedbackend.NewMemcachedCache("localhost:11211")
+	if err != nil {
+		fmt.Println("ERROR: Cannot connect to Memcached:", err)
+		fmt.Println("Make sure Memcached is running on localhost:11211")
+		return
+	}
+	defer mc.Close()
+
+	// Clear all keys before testing
+	mc.FlushAll()
+
+	var c cache.Cache
+	c = mc
+
+	fmt.Println("\n1) Memcached Basic SET + GET")
+	c.Set("product", "Laptop", 0)
+
+	val, ok := c.Get("product")
+	fmt.Println("Get product:", val, ok)
+
+	fmt.Println("\n2) Memcached SET with TTL")
+	c.Set("cache_key", "temp_data", 5*time.Second)
+
+	val, ok = c.Get("cache_key")
+	fmt.Println("before expiry:", val, ok)
+
+	fmt.Println("Waiting 6 seconds for TTL expiry...")
+	time.Sleep(6 * time.Second)
+
+	_, ok = c.Get("cache_key")
+	fmt.Println("after expiry:", ok)
+
+	fmt.Println("\n3) Memcached Delete test")
+	c.Set("delete_test", "removable", 0)
+
+	c.Delete("delete_test")
+	_, ok = c.Get("delete_test")
+	fmt.Println("delete_test exists after delete:", ok)
+
+	fmt.Println("\n4) Memcached Multiple values")
+	c.Set("item1", "Apple", 0)
+	c.Set("item2", "Banana", 0)
+	c.Set("item3", "Cherry", 0)
+
+	for i := 1; i <= 3; i++ {
+		key := fmt.Sprintf("item%d", i)
+		val, ok := c.Get(key)
+		fmt.Println(fmt.Sprintf("Get %s: %v, exists: %v", key, val, ok))
+	}
+
+	fmt.Println("\n5) Memcached GetMultiple (batch retrieval)")
+	mc.Set("id:1", "user_1", 0)
+	mc.Set("id:2", "user_2", 0)
+	mc.Set("id:3", "user_3", 0)
+
+	items := mc.GetMultiple("id:1", "id:2", "id:3")
+	fmt.Println("Batch retrieved items:", items)
+
+	fmt.Println("\n6) Memcached connection successful (basic validation)")
+
+
+	fmt.Println("\n===== Memcached test Complete =====")
 }
