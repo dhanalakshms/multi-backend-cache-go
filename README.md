@@ -1,140 +1,299 @@
 
-# Multi Backend Cache Library 
+# Multi-Backend Caching Library in Go
 
-Implementation of a lightweight in-memory cache with a Least Recently Used (LRU) eviction policy.
+A high-performance, pluggable caching library in Go supporting multiple backends:
 
----
+- In-Memory LRU Cache
+- Redis
+- Memcached
 
-## Objective Covered
-
-1. Develop an in-memory cache with LRU eviction policy
-2. Implement Set, Get, Delete operations
-3. Add TTL and Mutex support
-4. Handle automatic eviction when capacity is exceeded
+The library provides a unified API for cache operations and allows seamless switching between backends without modifying application logic.
 
 ---
 
-## What this code does
+## 🚀 Features
 
-This project implements an **in-memory LRU cache** using:
-
-* A **hash map** for fast key lookup
-* A **doubly linked list** to track usage order
-* **TTL timers** for automatic expiration
-* **Mutex locking** for safe concurrent access
-
----
-
-## Project Structure
-
-```
-multi-backend-cache-go
-│
-├── inmemory/
-│   └── lru.go        → LRU cache implementation
-│
-├── main.go           → Demo & testing all operations
-├── go.mod
-└── README.md
-```
+- In-Memory LRU Cache with O(1) operations
+- Redis integration using go-redis/v8
+- Memcached integration using gomemcache
+- Unified Cache Interface
+- TTL (Time-To-Live) support
+- Manual invalidation (Delete, Clear)
+- Thread-safe implementation
+- supports sync and async operations
+- Performance benchmark suite
+- Pluggable backend selection
+- Clean and intuitive API design
 
 ---
 
-## Supported Operations
+## 🏗 Architecture Overview
 
-### Create Cache
+The library follows a unified interface design:
 
 ```go
-cache := inmemory.NewLRUCache(2)
-```
+type Cache interface {
+    Set(key string, value interface{}, ttl time.Duration) error
+    Get(key string) (interface{}, error)
+    Delete(key string) error
+    Clear() error
+}
+````
+
+Each backend implements this interface:
+
+* `inmemory` → In-Memory LRU implementation
+* `redis` → Redis backend
+* `memcached` → Memcached backend
+
+This design ensures seamless backend switching.
 
 ---
 
-### Set Value (with TTL)
+## 📘 Comprehensive API Documentation
+
+### 1️⃣ Set
 
 ```go
-cache.Set("a", 1, 5*time.Second)
+Set(key string, value interface{}, ttl time.Duration) error
 ```
+Stores a key-value pair with optional TTL.
+
+* `key` → Unique cache key
+* `value` → Any Go type
+* `ttl` → Expiration duration (0 = no expiration)
 
 ---
 
-### Get Value
+### 2️⃣ Get
 
 ```go
-value, ok := cache.Get("a")
+Get(key string) (interface{}, error)
 ```
+
+Retrieves value by key.
+
+* Returns error if:
+
+  * Key not found
+  * Key expired
 
 ---
 
-### Delete Key
+### 3️⃣ Delete
 
 ```go
-cache.Delete("a")
+Delete(key string) error
 ```
+
+Manually removes a key from cache.
 
 ---
 
-## Example Usage (main.go)
+### 4️⃣ Clear
 
 ```go
-cache := inmemory.NewLRUCache(2)
+Clear() error
+```
 
-cache.Set("d", "dhanalakshmi", 5*time.Second)
+Clears entire cache.
 
-val, ok := cache.Get("d")
-fmt.Println(val, ok)
+---
 
-cache.Delete("d")
+## 🧪 Usage Guide & Examples
 
-_, ok = cache.Get("d")
-fmt.Println(ok)
+### Using In-Memory LRU
+
+```go
+import "github.com/dhanalakshms/multi-backend-cache-go/inmemory"
+
+cache := inmemory.NewLRUCache(100)
+
+cache.Set("user", "SampleData1", 5*time.Second)
+
+value, err := cache.Get("user")
+if err != nil {
+    fmt.Println("Error:", err)
+}
+
+fmt.Println("Value:", value)
 ```
 
 ---
 
-## Sample Output
+### Using Redis
+install Redis server and go-redis/v8 client library before running this example.
 
+```go
+import redisbackend "github.com/dhanalakshms/multi-backend-cache-go/redis"
+
+rc, _ := redisbackend.NewRedisCache("localhost:6379")
+defer rc.Close()
+
+rc.Set("key", "value", 0)
+val, _ := rc.Get("key")
 ```
-dhanalakshmi true
-after delete: false
-after ttl: false
-```
-
-
-## Current Progress
-
-### Week 1
-
-* Implemented doubly linked list
-* Designed node structure
-* Built base LRU logic
-* Added Set and Get operations
-
-### Week 2
-
-* Implemented Delete
-* Added TTL support
-* Improved eviction handling
-* Tested all operations in main.go
 
 ---
 
-## Next Improvements - Planned
+### Using Memcached
+install memcached server and client library before running this example.
 
-* Redis backend
-* Memcached backend
-* Common cache interface
-* Unit tests
+```go
+import "github.com/dhanalakshms/multi-backend-cache-go/memcached"
+
+mc, _ := memcached.NewMemcachedCache("localhost:11211")
+defer mc.Close()
+
+mc.Set("key", "value", 0)
+val, _ := mc.Get("key")
+```
 
 ---
 
-## How to Run
+### Switching Backend Easily
 
-```bash
-git clone https://github.com/dhanalakshms/multi-backend-cache-go.git
-cd multi-backend-cache-go
-go run main.go
+```go
+var cache cache.Cache
+
+cache = inmemory.NewLRUCache(100)
+// OR
+cache = redisCache
+// OR
+cache = memcachedCache
 ```
 
+No application logic changes required.
 
+---
+
+## 📊 Benchmark Results
+
+### In-Memory LRU
+
+| Operation      | Latency |
+| -------------- | ------- |
+| Set            | ~576 ns |
+| Get            | ~234 ns |
+| Delete         | ~657 ns |
+| Concurrent Set | ~904 ns |
+
+Sub-microsecond latency confirms O(1) performance.
+
+---
+
+### Redis (Localhost)
+
+| Operation | Latency |
+| --------- | ------- |
+| Set       | ~522 µs |
+| Get       | ~462 µs |
+| Delete    | ~464 µs |
+
+Network latency dominates performance.
+
+---
+
+### Memcached (Localhost)
+
+| Operation | Latency |
+| --------- | ------- |
+| Set       | ~766 µs |
+| Get       | ~677 µs |
+| Delete    | ~666 µs |
+
+Performance consistent with network-based caching systems.
+
+---
+
+## 🧵 Thread Safety
+
+* In-memory LRU uses mutex locking for safe concurrent access.
+* Benchmarks confirm stable behavior under parallel workloads.
+
+---
+
+## 🔄 Cache Invalidation & Expiration
+
+* TTL support for automatic expiration
+* Manual invalidation using `Delete`
+* Complete cache reset using `Clear`
+* Expired entries removed during access
+
+---
+
+## 🛠 Best Practices for Integration
+
+1. Use In-Memory LRU for:
+
+   * High-frequency, low-latency local caching
+   * Single-instance applications
+
+2. Use Redis for:
+
+   * Distributed systems
+   * Shared caching across services
+   * Persistence requirements
+
+3. Use Memcached for:
+
+   * High-speed distributed caching
+   * Stateless microservices
+
+4. Keep TTL values meaningful:
+
+   * Avoid extremely short TTLs
+   * Balance freshness and performance
+
+5. Always handle errors from `Get` properly:
+
+   * Distinguish between cache miss and system error
+
+6. Use capacity limits carefully in LRU to prevent memory overuse.
+
+---
+
+## 📂 Project Structure
+
+```
+/cache        → Interface definition
+/inmemory     → LRU implementation
+/redis        → Redis integration
+/memcached    → Memcached integration
+/main.go      → Example usage
+```
+
+---
+
+## 🧪 Running Tests
+
+```
+go test ./...
+```
+
+---
+
+## 📈 Running Benchmarks
+
+```
+go test ./... -bench="." -benchmem
+```
+
+---
+
+## 🎯 Design Highlights
+
+* Doubly linked list + hash map for O(1) LRU eviction
+* Pluggable backend architecture
+* Unified API abstraction
+* TTL-based expiration policy
+* Benchmark-driven performance validation
+
+---
+
+## 📌 Current Stable Release
+
+**v1.2.0**
+
+---
 
