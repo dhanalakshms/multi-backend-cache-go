@@ -1,7 +1,7 @@
 package cache
 
 import "time"
-
+// Async operations for cache
 func SetAsync(c Cache, key string, value interface{}, ttl time.Duration) <-chan error {
 	result := make(chan error, 1)
 

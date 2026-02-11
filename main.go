@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"time"
+	"sync"
 
 	"github.com/dhanalakshms/multi-backend-cache-go/cache"
 	"github.com/dhanalakshms/multi-backend-cache-go/inmemory"
@@ -25,7 +26,8 @@ func main() {
 
 	case "lru":
 		dbName = "In-Memory LRU Cache"
-		c = inmemory.NewLRUCache(2)
+		c = inmemory.NewLRUCache(50)
+
 
 	case "redis":
 		dbName = "Redis Cache"
@@ -167,7 +169,54 @@ func main() {
 		fmt.Println("FAILED: Missing key should return error")
 	}
 
+
+	// ------------------------------------------------
+// 8️⃣ Concurrent Async Test
+// ------------------------------------------------
+fmt.Println("\n[8] Concurrent Async Test")
+
+var wg sync.WaitGroup
+concurrentOps := 10
+
+// Concurrent Set
+for i := 0; i < concurrentOps; i++ {
+	wg.Add(1)
+	go func(i int) {
+		defer wg.Done()
+		key := fmt.Sprintf("AsyncKey%d", i)
+		value := fmt.Sprintf("AsyncValue%d", i)
+		err := c.Set(key, value, 0)
+		if err != nil {
+			fmt.Println("Set error:", err)
+		}
+	}(i)
+}
+
+wg.Wait()
+fmt.Println("Concurrent Set operations completed")
+
+// Concurrent Get
+for i := 0; i < concurrentOps; i++ {
+	wg.Add(1)
+	go func(i int) {
+		defer wg.Done()
+		key := fmt.Sprintf("AsyncKey%d", i)
+		val, err := c.Get(key)
+		if err != nil {
+			fmt.Println("Get error:", err)
+		} else {
+			fmt.Println("Retrieved:", key, "=", val)
+		}
+	}(i)
+}
+
+wg.Wait()
+fmt.Println("Concurrent Get operations completed")
+
+
 	fmt.Println("\n======================================")
 	fmt.Println("All tests completed successfully for", dbName)
 	fmt.Println("======================================")
+
 }
+

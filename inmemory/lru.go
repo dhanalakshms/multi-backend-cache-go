@@ -14,6 +14,7 @@ type Node struct {
 	expiry time.Time
 }
 
+//
 type LRUCache struct {
 	capacity        int
 	cache           map[string]*Node
@@ -139,10 +140,6 @@ func (c *LRUCache) Clear() error {
 	c.tail.prev = c.head
 	return nil
 }
-
-// ------------------------------
-// Background Cleanup
-// ------------------------------
 
 func (c *LRUCache) startCleanup() {
 	ticker := time.NewTicker(c.cleanupInterval)
