@@ -4,10 +4,8 @@ import (
 	"sync"
 	"testing"
 	"time"
-
 	cacheasync "github.com/dhanalakshms/multi-backend-cache-go/cache"
 )
-
 
 // TestLRU_AllFunctionalities checks all basic behaviors of LRU cache
 func TestLRU_AllFunctionalities(t *testing.T) {
@@ -82,7 +80,6 @@ func TestLRU_AllFunctionalities(t *testing.T) {
 
 	cache.StopCleanup()
 }
-
 
 // TestLRU_ConcurrentAccess checks thread safety
 func TestLRU_ConcurrentAccess(t *testing.T) {

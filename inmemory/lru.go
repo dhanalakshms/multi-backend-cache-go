@@ -26,7 +26,6 @@ type LRUCache struct {
 	stopCleanup     chan struct{}    // signal to stop cleanup goroutine
 }
 
-
 // NewLRUCache creates a new cache and optionally starts background cleanup
 func NewLRUCache(capacity int, cleanupInterval ...time.Duration) *LRUCache {
 	head := &Node{}
@@ -50,7 +49,6 @@ func NewLRUCache(capacity int, cleanupInterval ...time.Duration) *LRUCache {
 
 	return c
 }
-
 
 // add inserts node right after head (mark as most recently used)
 func (c *LRUCache) add(node *Node) {
@@ -90,7 +88,6 @@ func (c *LRUCache) Get(key string) (interface{}, error) {
 
 	return node.value, nil
 }
-
 
 // Set inserts or updates a key with optional TTL
 func (c *LRUCache) Set(key string, value interface{}, ttl time.Duration) error {
