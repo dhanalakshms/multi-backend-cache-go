@@ -4,8 +4,11 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	cacheasync "github.com/dhanalakshms/multi-backend-cache-go/cache"
 )
 
+// Create fresh Redis instance
 func setupRedisBench(b *testing.B) *RedisCache {
 	rc, err := NewRedisCache("localhost:6379")
 	if err != nil {
@@ -15,22 +18,24 @@ func setupRedisBench(b *testing.B) *RedisCache {
 	return rc
 }
 
+// Set with TTL
 func BenchmarkRedisSet(b *testing.B) {
 	rc := setupRedisBench(b)
 	defer rc.Close()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		rc.Set("key"+strconv.Itoa(i), "value", 0)
+		rc.Set("key"+strconv.Itoa(i), "value", 5*time.Second)
 	}
 }
 
+// Get on preloaded data
 func BenchmarkRedisGet(b *testing.B) {
 	rc := setupRedisBench(b)
 	defer rc.Close()
 
 	for i := 0; i < 100000; i++ {
-		rc.Set("key"+strconv.Itoa(i), "value", 0)
+		rc.Set("key"+strconv.Itoa(i), "value", 5*time.Second)
 	}
 
 	b.ResetTimer()
@@ -39,12 +44,13 @@ func BenchmarkRedisGet(b *testing.B) {
 	}
 }
 
+// Delete benchmark
 func BenchmarkRedisDelete(b *testing.B) {
 	rc := setupRedisBench(b)
 	defer rc.Close()
 
 	for i := 0; i < b.N; i++ {
-		rc.Set("key"+strconv.Itoa(i), "value", 0)
+		rc.Set("key"+strconv.Itoa(i), "value", 5*time.Second)
 	}
 
 	b.ResetTimer()
@@ -53,12 +59,74 @@ func BenchmarkRedisDelete(b *testing.B) {
 	}
 }
 
-func BenchmarkRedisSetWithTTL(b *testing.B) {
+// Concurrent set
+func BenchmarkRedisConcurrentSet(b *testing.B) {
 	rc := setupRedisBench(b)
 	defer rc.Close()
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	b.RunParallel(func(pb *testing.PB) {
+		i := 0
+		for pb.Next() {
+			rc.Set("key"+strconv.Itoa(i%100000), "value", 5*time.Second)
+			i++
+		}
+	})
+}
+
+// Async set
+func BenchmarkRedisAsyncSet(b *testing.B) {
+	rc := setupRedisBench(b)
+	defer rc.Close()
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		i := 0
+		for pb.Next() {
+			<-cacheasync.SetAsync(rc, "key"+strconv.Itoa(i%100000), "value", 5*time.Second)
+			i++
+		}
+	})
+}
+
+// Async delete
+func BenchmarkRedisAsyncDelete(b *testing.B) {
+	rc := setupRedisBench(b)
+	defer rc.Close()
+
+	for i := 0; i < 100000; i++ {
 		rc.Set("key"+strconv.Itoa(i), "value", 5*time.Second)
 	}
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		i := 0
+		for pb.Next() {
+			<-cacheasync.DeleteAsync(rc, "key"+strconv.Itoa(i%100000))
+			i++
+		}
+	})
+}
+
+// Mixed async workload
+func BenchmarkRedisAsyncMixed(b *testing.B) {
+	rc := setupRedisBench(b)
+	defer rc.Close()
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		i := 0
+		for pb.Next() {
+
+			key := "key" + strconv.Itoa(i%100000)
+
+			<-cacheasync.SetAsync(rc, key, "value", 5*time.Second)
+
+			rc.Get(key)
+
+			<-cacheasync.DeleteAsync(rc, key)
+
+			i++
+		}
+	})
 }
