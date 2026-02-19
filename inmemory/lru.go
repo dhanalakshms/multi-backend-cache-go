@@ -22,8 +22,8 @@ type LRUCache struct {
 	head            *Node            
 	tail            *Node            
 	mu              sync.Mutex       
-	cleanupInterval time.Duration    // interval for background cleanup
-	stopCleanup     chan struct{}    // signal to stop cleanup goroutine
+	cleanupInterval time.Duration    
+	stopCleanup     chan struct{}   
 }
 
 // NewLRUCache creates a new cache and optionally starts background cleanup
