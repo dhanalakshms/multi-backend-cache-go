@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
-
 	"github.com/bradfitz/gomemcache/memcache"
 )
 
@@ -12,6 +11,7 @@ type MemcachedCache struct {
 	client *memcache.Client
 }
 
+// create a new MemcachedCache connected to the provided server addresse (localhost:11211). 
 func NewMemcachedCache(servers ...string) (*MemcachedCache, error) {
 	if len(servers) == 0 {
 		servers = []string{"localhost:11211"}
@@ -33,6 +33,7 @@ func NewMemcachedCache(servers ...string) (*MemcachedCache, error) {
 	}, nil
 }
 
+// Get fetches a value by key.
 func (mc *MemcachedCache) Get(key string) (interface{}, error) {
 	item, err := mc.client.Get(key)
 	if err == memcache.ErrCacheMiss {
@@ -50,6 +51,7 @@ func (mc *MemcachedCache) Get(key string) (interface{}, error) {
 	return string(item.Value), nil
 }
 
+// Set stores a key with an optional TTL. 
 func (mc *MemcachedCache) Set(key string, value interface{}, ttl time.Duration) error {
 	expiration := int32(0)
 	if ttl > 0 {
@@ -70,14 +72,17 @@ func (mc *MemcachedCache) Set(key string, value interface{}, ttl time.Duration) 
 	return mc.client.Set(item)
 }
 
+// Delete removes the given key from Memcached.
 func (mc *MemcachedCache) Delete(key string) error {
 	return mc.client.Delete(key)
 }
 
+// Clear flushes all keys from the Memcached server(s).
 func (mc *MemcachedCache) Clear() error {
 	return mc.client.FlushAll()
 }
 
+// Close closes the underlying Memcached client connection.
 func (mc *MemcachedCache) Close() error {
 	return mc.client.Close()
 }
