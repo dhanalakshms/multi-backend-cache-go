@@ -100,6 +100,31 @@ Clears entire cache.
 
 ---
 
+## 🐳 Running Redis & Memcached using Docker
+
+### Redis
+
+```bash
+docker run -d -p 6379:6379 redis
+```
+
+### Memcached
+
+```bash
+docker run -d -p 11211:11211 memcached
+```
+
+Your library connects using:
+
+```
+localhost:6379
+localhost:11211
+```
+
+Containers ensure consistent testing and benchmarking environments.
+
+---
+
 ## 🧪 Usage Guide & Examples
 
 ### Using In-Memory LRU
@@ -108,8 +133,7 @@ Clears entire cache.
 import "github.com/dhanalakshms/multi-backend-cache-go/inmemory"
 
 cache := inmemory.NewLRUCache(100)
-
-cache.Set("user", "SampleData1", 5*time.Second)
+cache.Set("user", "data", 5*time.Second)
 
 value, err := cache.Get("user")
 if err != nil {
@@ -129,8 +153,7 @@ import redisbackend "github.com/dhanalakshms/multi-backend-cache-go/redis"
 
 rc, _ := redisbackend.NewRedisCache("localhost:6379")
 defer rc.Close()
-
-rc.Set("key", "value", 0)
+rc.Set("key", "value", 5*time.Second)
 val, _ := rc.Get("key")
 ```
 
@@ -144,8 +167,7 @@ import "github.com/dhanalakshms/multi-backend-cache-go/memcached"
 
 mc, _ := memcached.NewMemcachedCache("localhost:11211")
 defer mc.Close()
-
-mc.Set("key", "value", 0)
+mc.Set("key", "value", 5*time.Second)
 val, _ := mc.Get("key")
 ```
 
@@ -173,22 +195,24 @@ No application logic changes required.
 
 | Operation      | Latency |
 | -------------- | ------- |
-| Set            | ~576 ns |
-| Get            | ~234 ns |
-| Delete         | ~657 ns |
-| Concurrent Set | ~904 ns |
+| Set            | ~250 ns |
+| Get            | ~90 ns  |
+| Delete         | ~145 ns |
+| Concurrent Set | ~436 ns |
 
-Sub-microsecond latency confirms O(1) performance.
+Sub-microsecond latency confirms O(1) design.
 
 ---
 
 ### Redis (Localhost)
 
-| Operation | Latency |
-| --------- | ------- |
-| Set       | ~522 µs |
-| Get       | ~462 µs |
-| Delete    | ~464 µs |
+| Operation      | Latency |
+| -------------- | ------- |
+| Set            | ~365 µs |
+| Get            | ~302 µs |
+| Delete         | ~405 µs |
+| Concurrent Set | ~86 µs  |
+| Async Mixed    | ~308 µs |
 
 Network latency dominates performance.
 
@@ -196,11 +220,13 @@ Network latency dominates performance.
 
 ### Memcached (Localhost)
 
-| Operation | Latency |
-| --------- | ------- |
-| Set       | ~766 µs |
-| Get       | ~677 µs |
-| Delete    | ~666 µs |
+| Operation      | Latency  |
+| -------------- | -------- |
+| Set            | ~2.10 ms |
+| Get            | ~1.13 ms |
+| Delete         | ~0.76 ms |
+| Concurrent Set | ~0.18 ms |
+| Async Mixed    | ~0.66 ms |
 
 Performance consistent with network-based caching systems.
 
@@ -208,8 +234,9 @@ Performance consistent with network-based caching systems.
 
 ## 🧵 Thread Safety
 
-* In-memory LRU uses mutex locking for safe concurrent access.
-* Benchmarks confirm stable behavior under parallel workloads.
+* LRU uses mutex locking
+* External caches rely on client concurrency
+* Benchmarks validate stability under parallel workloads
 
 ---
 
@@ -218,7 +245,7 @@ Performance consistent with network-based caching systems.
 * TTL support for automatic expiration
 * Manual invalidation using `Delete`
 * Complete cache reset using `Clear`
-* Expired entries removed during access
+* Background cleanup (LRU)
 
 ---
 
@@ -293,7 +320,7 @@ go test ./... -bench="." -benchmem
 
 ## 📌 Current Stable Release
 
-**v1.2.0**
+**v1.2.1**
 
 ---
 
